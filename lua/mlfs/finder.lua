@@ -1,9 +1,18 @@
--- File finder using fzf
+-- File finder with custom UI
+
+local ui = require('mlfs.ui')
+local fuzzy = require('mlfs.fuzzy')
 
 local M = {}
 
 -- Plugin configuration (will be set from init.lua)
 M.config = {}
+
+-- Cached file list
+local file_cache = {
+  files = {},
+  root = nil,
+}
 
 -- Check if a command exists
 local function command_exists(cmd)
@@ -61,101 +70,187 @@ local function build_file_list_command()
   end
 end
 
--- Get fzf color scheme based on current Neovim colorscheme
-local function get_fzf_colors()
-  -- Get current background
-  local bg = vim.o.background
+-- Get list of files in project
+local function get_files()
+  local root = get_project_root()
 
-  -- Define color scheme based on background
-  if bg == 'dark' then
-    return '--color=dark,fg:#d0d0d0,bg:#1c1c1c,hl:#5f87af,fg+:#ffffff,bg+:#262626,hl+:#5fd7ff,info:#afaf87,prompt:#d7005f,pointer:#af5fff,marker:#87ff00,spinner:#af5fff,header:#87afaf'
-  else
-    return '--color=light,fg:#000000,bg:#ffffff,hl:#5f87af,fg+:#000000,bg+:#e0e0e0,hl+:#0087d7,info:#875f00,prompt:#d7005f,pointer:#af5fff,marker:#00af00,spinner:#af5fff,header:#005f87'
+  -- Return cached files if root hasn't changed
+  if file_cache.root == root and #file_cache.files > 0 then
+    return file_cache.files
   end
+
+  -- Get new file list
+  local cmd = build_file_list_command()
+  local handle = io.popen(cmd)
+  if not handle then
+    return {}
+  end
+
+  local files = {}
+  for line in handle:lines() do
+    -- Make path relative to root
+    local filepath = line
+    if filepath:sub(1, #root) == root then
+      filepath = filepath:sub(#root + 2)  -- +2 to skip the trailing /
+    end
+    table.insert(files, filepath)
+  end
+  handle:close()
+
+  -- Update cache
+  file_cache.files = files
+  file_cache.root = root
+
+  return files
 end
 
--- Open fzf file selector
-function M.open()
-  -- Check if fzf is installed
-  if not command_exists('fzf') then
-    vim.notify('fzf is not installed. Please install fzf first.', vim.log.levels.ERROR)
+-- Update results based on current query
+local function update_results()
+  if not ui.is_open() then
     return
   end
 
-  local root = get_project_root()
-  local file_list_cmd = build_file_list_command()
-  local height = M.config.window_height or 15
+  local query = ui.get_query()
+  local all_files = get_files()
 
-  -- Build fzf command with options
-  local fzf_opts = {
-    '--multi',  -- Allow multiple selection with Tab
-    '--reverse',  -- Results from top to bottom
-    '--height=' .. height,
-    '--border=none',
-    '--prompt=Files> ',
-    '--pointer=>',
-    '--marker=✓',
-    '--info=inline',
-    '--layout=reverse',
-    '--ansi',
-    get_fzf_colors(),
-  }
+  -- Filter files using fuzzy matching
+  local results = fuzzy.filter(query, all_files)
 
-  local fzf_cmd = file_list_cmd .. ' | fzf ' .. table.concat(fzf_opts, ' ')
+  -- Render results
+  ui.render_results(results, query)
+end
 
-  -- Create temporary file for fzf output
-  local tmp_file = vim.fn.tempname()
-  fzf_cmd = fzf_cmd .. ' > ' .. tmp_file
+-- Handle file selection
+local function select_file()
+  local selected = ui.get_selected()
+  if not selected then
+    ui.close()
+    return
+  end
 
-  -- Save current window
-  local original_win = vim.api.nvim_get_current_win()
+  -- Close UI first
+  ui.close()
 
-  -- Create bottom split
-  vim.cmd('botright ' .. height .. 'split')
-  local fzf_win = vim.api.nvim_get_current_win()
-  local fzf_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_win_set_buf(fzf_win, fzf_buf)
+  -- Open the selected file
+  vim.cmd('edit ' .. vim.fn.fnameescape(selected))
+end
 
-  -- Run fzf in terminal
-  vim.fn.termopen(fzf_cmd, {
-    on_exit = function(_, exit_code)
-      -- Close the fzf window
-      if vim.api.nvim_win_is_valid(fzf_win) then
-        vim.api.nvim_win_close(fzf_win, true)
+-- Setup keymaps for the picker
+local function setup_keymaps(buf)
+  local opts = { noremap = true, silent = true, buffer = buf }
+
+  -- Close picker
+  vim.keymap.set('n', 'q', function() ui.close() end, opts)
+  vim.keymap.set('n', '<Esc>', function() ui.close() end, opts)
+  vim.keymap.set('i', '<Esc>', function()
+    ui.close()
+    vim.cmd('stopinsert')
+  end, opts)
+
+  -- Select file
+  vim.keymap.set('i', '<CR>', function()
+    vim.cmd('stopinsert')
+    select_file()
+  end, opts)
+  vim.keymap.set('n', '<CR>', select_file, opts)
+
+  -- Navigation
+  vim.keymap.set('i', '<C-n>', function()
+    ui.select_next()
+  end, opts)
+  vim.keymap.set('i', '<C-p>', function()
+    ui.select_prev()
+  end, opts)
+  vim.keymap.set('i', '<Down>', function()
+    ui.select_next()
+  end, opts)
+  vim.keymap.set('i', '<Up>', function()
+    ui.select_prev()
+  end, opts)
+  vim.keymap.set('n', 'j', function()
+    ui.select_next()
+  end, opts)
+  vim.keymap.set('n', 'k', function()
+    ui.select_prev()
+  end, opts)
+end
+
+-- Setup autocmds for real-time updates
+local function setup_autocmds(buf)
+  local augroup = vim.api.nvim_create_augroup('MLFSPicker', { clear = true })
+
+  -- Update results on text change
+  vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChanged' }, {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      -- Only update if we're on the first line (prompt line)
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      if cursor[1] == 1 then
+        update_results()
       end
-
-      -- Return to original window
-      if vim.api.nvim_win_is_valid(original_win) then
-        vim.api.nvim_set_current_win(original_win)
-      end
-
-      -- If user selected a file (exit code 0)
-      if exit_code == 0 then
-        -- Read selected files from temp file
-        local file = io.open(tmp_file, 'r')
-        if file then
-          for line in file:lines() do
-            if line ~= '' then
-              -- Open the selected file
-              local filepath = line
-              -- Make path relative to current directory for cleaner display
-              if filepath:sub(1, #root) == root then
-                filepath = filepath:sub(#root + 2)  -- +2 to skip the trailing /
-              end
-              vim.cmd('edit ' .. vim.fn.fnameescape(filepath))
-            end
-          end
-          file:close()
-        end
-      end
-
-      -- Clean up temp file
-      vim.fn.delete(tmp_file)
     end,
   })
 
-  -- Enter insert mode to start searching immediately
-  vim.cmd('startinsert')
+  -- Keep cursor on first line in normal mode
+  vim.api.nvim_create_autocmd('CursorMoved', {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      if cursor[1] ~= 1 then
+        vim.api.nvim_win_set_cursor(0, { 1, cursor[2] })
+      end
+    end,
+  })
+
+  -- Clean up on buffer close
+  vim.api.nvim_create_autocmd('BufWipeout', {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      ui.close()
+    end,
+  })
+end
+
+-- Open file finder
+function M.open()
+  -- Get file list
+  local files = get_files()
+
+  if #files == 0 then
+    vim.notify('No files found in current directory', vim.log.levels.WARN)
+    return
+  end
+
+  -- Open UI
+  local height = M.config.window_height or 15
+  local buf, win = ui.open(height)
+
+  if not buf or not win then
+    vim.notify('Failed to open picker', vim.log.levels.ERROR)
+    return
+  end
+
+  -- Setup keymaps and autocmds
+  setup_keymaps(buf)
+  setup_autocmds(buf)
+
+  -- Initial render with all files
+  ui.render_results(files, '')
+
+  -- Make buffer modifiable only on first line
+  vim.api.nvim_buf_set_option(buf, 'modifiable', true)
+
+  -- Enter insert mode at end of prompt
+  vim.cmd('startinsert!')
+end
+
+-- Clear file cache (useful if files change)
+function M.refresh_cache()
+  file_cache.files = {}
+  file_cache.root = nil
 end
 
 return M
