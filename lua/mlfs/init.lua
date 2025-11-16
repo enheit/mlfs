@@ -21,8 +21,6 @@ M.config = {
   show_hidden = true,
   -- Height of the fzf window (in lines)
   window_height = 15,
-  -- Keybinding for opening the file selector
-  keymap = '<leader><leader>',
 }
 
 -- Setup function
@@ -32,17 +30,6 @@ function M.setup(opts)
 
   -- Update finder config
   finder.config = M.config
-
-  -- Setup keymap if provided
-  if M.config.keymap then
-    vim.keymap.set('n', M.config.keymap, function()
-      M.find()
-    end, {
-      noremap = true,
-      silent = true,
-      desc = 'Open MLFS file selector',
-    })
-  end
 end
 
 -- Open file finder

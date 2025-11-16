@@ -55,8 +55,10 @@ brew install fzf fd
       },
       show_hidden = true,
       window_height = 15,
-      keymap = '<leader><leader>',
     })
+
+    -- Set keybinding
+    vim.keymap.set('n', '<leader><leader>', ':MLFSFind<CR>', { desc = 'Find Files' })
   end,
 }
 ```
@@ -122,25 +124,21 @@ require('mlfs').setup({
 
   -- Height of the fzf window (in lines)
   window_height = 15,
-
-  -- Keybinding for opening the file selector
-  -- Set to false to disable default keybinding
-  keymap = '<leader><leader>',
 })
+
+-- Set keybinding
+vim.keymap.set('n', '<leader><leader>', ':MLFSFind<CR>', { desc = 'Find Files' })
 ```
 
 ### Custom keybinding example
 
 ```lua
--- Disable default keybinding and set your own
 require('mlfs').setup({
-  keymap = false,
+  -- your config here
 })
 
--- Set custom keybinding
-vim.keymap.set('n', '<C-p>', function()
-  require('mlfs').find()
-end, { desc = 'Find files' })
+-- Use any keybinding you prefer
+vim.keymap.set('n', '<C-p>', ':MLFSFind<CR>', { desc = 'Find files' })
 ```
 
 ### Exclude additional patterns
