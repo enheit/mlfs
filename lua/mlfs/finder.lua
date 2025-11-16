@@ -179,11 +179,18 @@ end
 local function setup_autocmds(buf)
   local augroup = vim.api.nvim_create_augroup('MLFSPicker', { clear = true })
 
-  -- Update results on text change
+  -- Update results on text change and prevent multi-line
   vim.api.nvim_create_autocmd({ 'TextChangedI', 'TextChanged' }, {
     group = augroup,
     buffer = buf,
     callback = function()
+      -- Prevent multiple lines
+      local line_count = vim.api.nvim_buf_line_count(buf)
+      if line_count > 1 then
+        local prompt_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { prompt_line })
+      end
+
       -- Only update if we're on the first line (prompt line)
       local cursor = vim.api.nvim_win_get_cursor(0)
       if cursor[1] == 1 then
@@ -194,6 +201,18 @@ local function setup_autocmds(buf)
 
   -- Keep cursor on first line in normal mode
   vim.api.nvim_create_autocmd('CursorMoved', {
+    group = augroup,
+    buffer = buf,
+    callback = function()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      if cursor[1] ~= 1 then
+        vim.api.nvim_win_set_cursor(0, { 1, cursor[2] })
+      end
+    end,
+  })
+
+  -- Keep cursor on first line in insert mode
+  vim.api.nvim_create_autocmd('CursorMovedI', {
     group = augroup,
     buffer = buf,
     callback = function()

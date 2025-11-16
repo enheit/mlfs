@@ -123,7 +123,7 @@ function M.render_results(results, query)
   -- Update buffer
   vim.api.nvim_buf_set_option(state.buf, 'modifiable', true)
   vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(state.buf, 'modifiable', false)
+  -- Keep buffer modifiable so user can type in prompt line
 
   -- Clear previous highlights
   vim.api.nvim_buf_clear_namespace(state.buf, -1, 0, -1)
