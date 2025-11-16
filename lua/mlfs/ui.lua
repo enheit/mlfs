@@ -6,7 +6,7 @@ local M = {}
 local state = {
   buf = nil,
   win = nil,
-  prompt = 'Files> ',
+  prompt = '',
   selected_index = 1,
   results = {},
   on_select = nil,
@@ -127,9 +127,6 @@ function M.render_results(results, query)
 
   -- Clear previous highlights
   vim.api.nvim_buf_clear_namespace(state.buf, -1, 0, -1)
-
-  -- Highlight prompt
-  vim.api.nvim_buf_add_highlight(state.buf, -1, 'MLFSPrompt', 0, 0, #state.prompt)
 
   -- Highlight selected item
   if #results > 0 and state.selected_index <= #results then
