@@ -103,20 +103,18 @@ function M.render_results(results, query)
   -- Limit results to prevent performance issues
   local max_results = 100
 
-  -- Build lines: prompt + separator + results
+  -- Build lines: prompt + results
   local lines = { prompt_line }
 
   if #results == 0 then
-    table.insert(lines, '─────────────────────')
-    table.insert(lines, '  No matches found')
+    table.insert(lines, 'No matches found')
   else
-    table.insert(lines, '─────────────────────')
     for i = 1, math.min(#results, max_results) do
-      table.insert(lines, '  ' .. results[i])
+      table.insert(lines, results[i])
     end
 
     if #results > max_results then
-      table.insert(lines, string.format('  ... and %d more', #results - max_results))
+      table.insert(lines, string.format('... and %d more', #results - max_results))
     end
   end
 
@@ -130,7 +128,7 @@ function M.render_results(results, query)
 
   -- Highlight selected item
   if #results > 0 and state.selected_index <= #results then
-    local line_idx = state.selected_index + 1  -- +1 for separator line
+    local line_idx = state.selected_index  -- No separator, just offset from prompt
     vim.api.nvim_buf_add_highlight(state.buf, -1, 'MLFSSelection', line_idx, 0, -1)
   end
 
@@ -141,11 +139,10 @@ function M.render_results(results, query)
       if i > max_results then
         break
       end
-      local line_idx = i + 1  -- +1 for separator
+      local line_idx = i  -- No separator or prefix
       local positions = fuzzy.get_match_positions(result, query)
       for _, pos in ipairs(positions) do
-        -- +2 to account for "  " prefix
-        vim.api.nvim_buf_add_highlight(state.buf, -1, 'MLFSMatch', line_idx, pos + 2, pos + 3)
+        vim.api.nvim_buf_add_highlight(state.buf, -1, 'MLFSMatch', line_idx, pos, pos + 1)
       end
     end
   end
