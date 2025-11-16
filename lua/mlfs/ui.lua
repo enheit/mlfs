@@ -100,6 +100,9 @@ function M.render_results(results, query)
   -- Get current prompt line content
   local prompt_line = vim.api.nvim_buf_get_lines(state.buf, 0, 1, false)[1] or state.prompt
 
+  -- Limit results to prevent performance issues
+  local max_results = 100
+
   -- Build lines: prompt + separator + results
   local lines = { prompt_line }
 
@@ -108,9 +111,6 @@ function M.render_results(results, query)
     table.insert(lines, '  No matches found')
   else
     table.insert(lines, '─────────────────────')
-
-    -- Limit results to prevent performance issues
-    local max_results = 100
     for i = 1, math.min(#results, max_results) do
       table.insert(lines, '  ' .. results[i])
     end
