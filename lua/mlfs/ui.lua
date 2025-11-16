@@ -37,9 +37,10 @@ local function setup_highlights()
     link = 'CursorLine',
   })
 
-  -- Matched characters
+  -- Matched characters - use IncSearch for visibility
   vim.api.nvim_set_hl(0, 'MLFSMatch', {
-    fg = get_hl_color('Search', 'fg') or get_hl_color('IncSearch', 'fg'),
+    fg = get_hl_color('IncSearch', 'fg') or get_hl_color('String', 'fg'),
+    bg = get_hl_color('IncSearch', 'bg'),
     bold = true,
   })
 
