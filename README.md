@@ -2,6 +2,8 @@
 
 A fast, fuzzy file finder for Neovim with smart filtering and beautiful highlighting.
 
+[![asciicast](https://asciinema.org/a/fcLCb3bhb3iXWmIB2tfXvDNmU.svg)](https://asciinema.org/a/fcLCb3bhb3iXWmIB2tfXvDNmU)
+
 ## Features
 
 - **Fast fuzzy matching** powered by fzf
